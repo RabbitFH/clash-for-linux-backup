@@ -145,13 +145,14 @@ fi
 # 取出代理相关配置 
 #sed -n '/^proxies:/,$p' $Temp_Dir/clash.yaml > $Temp_Dir/proxy.txt
 sed -n '/^proxies:/,$p' $Temp_Dir/clash_config.yaml |\
-sed -e '/^port:/d'\
+sed -e '/^mixed-port:/d'\
+    -e '/^port:/d'\
     -e '/^socks-port:/d'\
     -e '/^redir-port:/d'\
     -e '/^allow-lan"/d'\
     -e '/^mode:/d'\
     -e '/^log-level:/d'\
-    -e '/^external-controller:/d'
+    -e '/^external-controller:/d'\
     -e '/^secret:/d' > $Temp_Dir/proxy.txt
 
 # 合并形成新的config.yaml
@@ -163,7 +164,7 @@ cat $Temp_Dir/proxy.txt >> $Temp_Dir/config.yaml
 Work_Dir=$(cd $(dirname $0); pwd)
 Dashboard_Dir="${Work_Dir}/dashboard/public"
 sed -ri "s@^# external-ui:.*@external-ui: ${Dashboard_Dir}@g" $Conf_Dir/config.yaml
-sed -r -i '/^secret: /s@(secret: ).*@\1'${Secret}'@g' $Conf_Dir/config.yaml
+sed -ri '/^secret: /s@(secret: ).*@\1'${Secret}'@g' $Conf_Dir/config.yaml
 
 
 ## 启动Clash服务
@@ -188,10 +189,9 @@ else
 fi
 
 # Output Dashboard access address and Secret
-echo ''
-echo -e "Clash Dashboard 访问地址: http://<ip>:9090/ui"
+UI_Prot=$(sed -n '/external-controller:/s/.*:\([0-9]*\).*/\1/p' $Conf_Dir/config.yaml)
+echo -e "\nClash Dashboard 访问地址: http://<ip>:$UI_Prot/ui"
 echo -e "Secret: ${Secret}"
-echo ''
 
 # 添加环境变量(root权限)
 cat>/etc/profile.d/clash.sh<<EOF
@@ -199,9 +199,11 @@ cat>/etc/profile.d/clash.sh<<EOF
 proxy_on() {
 	export http_proxy=http://127.0.0.1:7890
 	export https_proxy=http://127.0.0.1:7890
+	export all_proxy="socks5://127.0.0.1:7890"
 	export no_proxy=127.0.0.1,localhost
-    	export HTTP_PROXY=http://127.0.0.1:7890
-    	export HTTPS_PROXY=http://127.0.0.1:7890
+    export HTTP_PROXY=http://127.0.0.1:7890
+    export HTTPS_PROXY=http://127.0.0.1:7890
+    export ALL_PROXY="socks5://127.0.0.1:7890"
  	export NO_PROXY=127.0.0.1,localhost
 	echo -e "\033[32m[√] 已开启代理\033[0m"
 }
@@ -210,13 +212,40 @@ proxy_on() {
 proxy_off(){
 	unset http_proxy
 	unset https_proxy
+  	unset all_proxy
 	unset no_proxy
   	unset HTTP_PROXY
 	unset HTTPS_PROXY
+  	unset ALL_PROXY
 	unset NO_PROXY
 	echo -e "\033[31m[×] 已关闭代理\033[0m"
 }
 EOF
+
+# 加载环境变量
+source /etc/profile.d/clash.sh
+echo -e "\n环境变量加载完成\\033[60G[\\033[1;32m  OK  \\033[0;39m]"
+
+# 开启系统代理
+proxy_on
+
+# 检查端口
+sleep 3
+echo ""
+echo -e "====================检查端口状态===================="
+netstat -tln | grep -E $UI_Prot'|789.'
+echo -e "==================================================="
+echo ""
+
+echo -e "#####################可用命令集#####################"
+echo -e "#### 关闭代理: \033[32mproxy_off\033[0m"
+echo -e "#### 开启代理: \033[31mproxy_on\033[0m"
+echo -e "#### 启动命令: \033[32msudo bash start.sh\033[0m"
+echo -e "#### 停止命令: \033[31msudo bash shutdown.sh\033[0m"
+echo -e "#### 重启命令（不更新订阅）: \033[33msudo bash restart.sh\033[0m"
+echo -e "###################################################"
+echo -e "\n\n"
+echo -e "      -─‐-             -──-‐"
 echo -e "     く__,.ヘヽ.        /  ,ー､ 〉"
 echo -e "           ＼ ', !-─‐-i  /  /´"
 echo -e "          ／｀ｰ'       L/／｀ヽ､"
@@ -234,9 +263,4 @@ echo -e "             !'〈//｀Ｔ´', ＼ ｀'7'ｰr'"
 echo -e "             ﾚ'ヽL__|___i,___,ンﾚ|ノ"
 echo -e "                  ﾄ-,/  |___./"
 echo -e "                  'ｰ'    !_,.:"
-echo -e "本项目完全免费，若你是收费买的，恭喜您，您被骗了！"
-echo -e "项目地址：https://github.com/Elegycloud/clash-for-linux-backup"
-echo -e "项目随时会寄，且行且珍惜！"
-echo -e "请执行以下命令加载环境变量: source /etc/profile.d/clash.sh\n"
-echo -e "请执行以下命令开启系统代理: proxy_on\n"
-echo -e "若要临时关闭系统代理，请执行: proxy_off\n"
+echo -e "\n\n"
