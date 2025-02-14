@@ -22,6 +22,7 @@ else
       echo "$decoded_content" > ${Server_Dir}/temp/clash_config.yaml
     else
       echo "解码后的内容不符合clash标准，尝试将其转换为标准格式"
+      echo "$decoded_content" > ${Server_Dir}/temp/clash_base64.yaml
 
       if [[ $CpuArch =~ "x86_64" || $CpuArch =~ "amd64" ]]; then
         ${Server_Dir}/tools/subconverter/subconverter -g &>> ${Server_Dir}/logs/subconverter.log

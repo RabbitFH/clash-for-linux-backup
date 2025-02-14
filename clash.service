@@ -1,0 +1,13 @@
+[Unit]
+Description=Clash Proxy Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/clash-for-linux/start.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

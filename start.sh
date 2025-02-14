@@ -30,7 +30,8 @@ URL=${CLASH_URL:?Error: CLASH_URL variable is not set or empty}
 # 获取 CLASH_SECRET 值，如果不存在则生成一个随机数
 Secret=${CLASH_SECRET:-$(openssl rand -hex 32)}
 
-
+# 获取 CLASH_UI 值，如果不存在则设置默认值
+Dashboard_Dir=${CLASH_UI:Clash}
 
 #################### 函数定义 ####################
 
@@ -86,12 +87,15 @@ fi
 
 export CpuArch=$CpuArch
 
+
 ## 临时取消环境变量
 unset http_proxy
 unset https_proxy
+unset all_proxy
 unset no_proxy
 unset HTTP_PROXY
 unset HTTPS_PROXY
+unset ALL_PROXY
 unset NO_PROXY
 
 
@@ -140,52 +144,71 @@ if [[ $CpuArch =~ "x86_64" || $CpuArch =~ "amd64" || $CpuArch =~ "arm64" ]]; the
 fi
 
 
-
 ## Clash 配置文件重新格式化及配置
 # 取出代理相关配置 
 #sed -n '/^proxies:/,$p' $Temp_Dir/clash.yaml > $Temp_Dir/proxy.txt
 sed -n '/^proxies:/,$p' $Temp_Dir/clash_config.yaml |\
-sed -e '/^mixed-port:/d'\
-    -e '/^port:/d'\
+sed -e '/^port:/d'\
     -e '/^socks-port:/d'\
     -e '/^redir-port:/d'\
+    -e '/^tproxy-port:/d'\
+    -e '/^mixed-port:/d'\
     -e '/^allow-lan"/d'\
+    -e '/^bind-address"/d'\
     -e '/^mode:/d'\
     -e '/^log-level:/d'\
     -e '/^external-controller:/d'\
-    -e '/^secret:/d' > $Temp_Dir/proxy.txt
+    -e '/^external-ui:/d'\
+    -e '/^secret:/d'\
+    -e '/^interface-name:/d'\
+    -e '/^routing-mark:/d' > $Temp_Dir/proxy.txt
 
 # 合并形成新的config.yaml
 cat $Temp_Dir/templete_config.yaml > $Temp_Dir/config.yaml
+echo -e "\n\n" >> $Temp_Dir/config.yaml
 cat $Temp_Dir/proxy.txt >> $Temp_Dir/config.yaml
+echo -e "\n\n" >> $Temp_Dir/config.yaml
+cat $Temp_Dir/templete_tun.yaml >> $Temp_Dir/config.yaml
 \cp $Temp_Dir/config.yaml $Conf_Dir/
 
 # Configure Clash Dashboard
 Work_Dir=$(cd $(dirname $0); pwd)
-Dashboard_Dir="${Work_Dir}/dashboard/public"
+Dashboard_Dir="${Work_Dir}/dashboard/${Dashboard_Dir}"
 sed -ri "s@^# external-ui:.*@external-ui: ${Dashboard_Dir}@g" $Conf_Dir/config.yaml
 sed -ri '/^secret: /s@(secret: ).*@\1'${Secret}'@g' $Conf_Dir/config.yaml
 
 
 ## 启动Clash服务
-echo -e '\n正在启动Clash服务...'
-Text5="服务启动成功！"
-Text6="服务启动失败！"
+# 获取程序路径
+Exec_Dir=$Server_Dir
 if [[ $CpuArch =~ "x86_64" || $CpuArch =~ "amd64"  ]]; then
-	nohup $Server_Dir/bin/clash-linux-amd64 -d $Conf_Dir &> $Log_Dir/clash.log &
-	ReturnStatus=$?
-	if_success $Text5 $Text6 $ReturnStatus
+	Exec_Dir=$Exec_Dir/bin/clash-linux-amd64
 elif [[ $CpuArch =~ "aarch64" ||  $CpuArch =~ "arm64" ]]; then
-	nohup $Server_Dir/bin/clash-linux-arm64 -d $Conf_Dir &> $Log_Dir/clash.log &
-	ReturnStatus=$?
-	if_success $Text5 $Text6 $ReturnStatus
+	Exec_Dir=$Exec_Dir/bin/clash-linux-arm64
 elif [[ $CpuArch =~ "armv7" ]]; then
-	nohup $Server_Dir/bin/clash-linux-armv7 -d $Conf_Dir &> $Log_Dir/clash.log &
-	ReturnStatus=$?
-	if_success $Text5 $Text6 $ReturnStatus
+	Exec_Dir=$Exec_Dir/bin/clash-linux-armv7
 else
 	echo -e "\033[31m\n[ERROR] Unsupported CPU Architecture！\033[0m"
 	exit 1
+fi
+
+# 作为服务启动则不使用后台运行
+echo -e '\n正在启动Clash服务...'
+Text5="服务启动成功！"
+Text6="服务启动失败！"
+Log_File="$Log_Dir/$(date +"%Y-%m-%d-%H%M%S").log"
+if systemctl is-active --quiet clash; then
+	echo -e "服务运行................................"
+	$Exec_Dir -d $Conf_Dir > $Log_File
+	Error_Message=$(tail -n 1 $Log_File | sed -n 's/.*msg="\([^"]*\)".*/\1/p')
+	[ -z "$Error_Message" ] && Error_Message="未找到错误信息，请查看日志文件！"
+	echo -e "\033[31m\n[ERROR]$Text6\n[ERROR]Message：“$Error_Message“\033[0m"
+	systemctl stop clash
+	exit 1
+else
+	nohup $Exec_Dir -d $Conf_Dir &> $Log_File &
+	ReturnStatus=$?
+	if_success $Text5 $Text6 $ReturnStatus
 fi
 
 # Output Dashboard access address and Secret
@@ -233,13 +256,13 @@ proxy_on
 sleep 3
 echo ""
 echo -e "====================检查端口状态===================="
-netstat -tln | grep -E $UI_Prot'|789.'
+netstat -tln | grep -E $UI_Prot'|53|789.'
 echo -e "==================================================="
 echo ""
 
 echo -e "#####################可用命令集#####################"
-echo -e "#### 关闭代理: \033[32mproxy_off\033[0m"
-echo -e "#### 开启代理: \033[31mproxy_on\033[0m"
+echo -e "#### 开启代理: \033[32mproxy_on\033[0m"
+echo -e "#### 关闭代理: \033[31mproxy_off\033[0m"
 echo -e "#### 启动命令: \033[32msudo bash start.sh\033[0m"
 echo -e "#### 停止命令: \033[31msudo bash shutdown.sh\033[0m"
 echo -e "#### 重启命令（不更新订阅）: \033[33msudo bash restart.sh\033[0m"

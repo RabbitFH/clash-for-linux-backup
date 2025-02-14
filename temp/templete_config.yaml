@@ -3,35 +3,155 @@
 # Update       ：20250209  默认关闭http/socks5/redir,补全部分备注
 # Description ：clash通用配置，仪表盘通过 http://<external-controller>/ui 访问
 
-#混合代理端口（http+socks）
-mixed-port: 7890
-
-# HTTP 代理端口（默认使用混合代理）
-# port: 7891 
+# HTTP(S) 代理端口（默认使用混合代理）
+# port: 7890 
 
 # SOCKS5 代理端口（默认使用混合代理）
-# socks-port: 7892 
+# socks-port: 7891 
 
-# Linux 和 macOS 的 redir 代理端口（默认使用混合代理）
-# redir-port: 7893 
+# Linux 和 macOS 的透明代理端口（重定向 TCP 和 TProxy UDP）
+# redir-port: 7892 
+
+# Linux 的透明代理端口（TProxy TCP 和 TProxy UDP）
+# tproxy-port: 7893
+
+# HTTP(S) 和 SOCKS4(A)/SOCKS5 混合代理端口
+mixed-port: 7890
+
+# SOCKS5/HTTP(S) 代理认证
+# authentication:
+#  - "user1:pass1"
+#  - "user2:pass2"
 
 # 允许局域网的连接
 allow-lan: true
 
-# 规则模式：Rule（规则） / Global（全局代理）/ Direct（全局直连）
+# 本地代理的 IP 地址（仅在将allow-lan设置为true时适用）
+# #'*': 绑定所有地址
+# #192.168.122.11: 绑定单个 IPv4 地址
+# #"[aaaa::a8aa:ff:fe09:57d8]": 绑定单个 IPv6 地址
+# bind-address: '*'
+
+# 规则模式：Rule（规则） / Global（代理）/ Direct（直连）
 mode: rule
 
 # 设置日志输出级别（默认级别:info，日志内容可能过大而导致程序内存溢出）
 # 5 个级别:silent / info / warning / error / debug。级别越高日志输出量越大，越倾向于调试，若需要请自行开启。
 log-level: info
 
-# Clash 的 RESTful API：0.0.0.0为所有地址
+# false 时不会解析ipv6地址
+# ipv6: false
+
+# RESTful API 监听地址 （0.0.0.0为所有地址）
 external-controller: '0.0.0.0:50456'
 
-# RESTful API 的口令
-secret: 'b&ZlKTte5OnEt2Sn'
+# 配置目录的相对路径或放置一些静态 Web 资源的目录的绝对路径（如 clash-dashboard）
+# Clash 在 http://{{external-controller}}/ui 上提供该资源
+# 使用 .env 文件设置 CLASH_UI 的值
+# external-ui: /clash-dashboard
 
-# 您可以将静态网页资源（如 clash-dashboard）放置在一个目录中，clash 将会服务于 `RESTful API/ui`
-# 参数应填写配置目录的相对路径或绝对路径。
-# external-ui: /code/clash-dashboard
+# RESTful API 的密钥（可选） （使用 .env 文件设置 CLASH_SECRET 的值）
+# 通过指定 HTTP 标头 Authorization: Bearer ${secret} 进行身份验证
+# 如果 RESTful API 正在监听 0.0.0.0，则始终设置密钥
+# secret: "8A9B010E-275D-C62B-FEB2-40179897892C"
 
+# 出口名称（默认为主出口）
+# interface-name: en0
+
+# Fwmark 的值（Linux 专用）
+# routing-mark: 6666
+
+# 用于 DNS 服务器和建立连接的静态主机（如 /etc/hosts）
+# 支持通配符主机名（例如: *.clash.dev, *.foo.*.example.com）
+# 非通配符域名的优先级高于通配符域名
+# 例如: foo.example.com > *.example.com > .example.com
+# 注意: +.foo.com 等于 .foo.com and foo.com
+# 注意: hosts 在 fake-ip 模式下不生效
+hosts:
+  # '*.clash.dev': 127.0.0.1
+  # '.dev': 127.0.0.1
+  # 'alpha.clash.dev': '::1'
+  mtalk.google.com: 108.177.125.188
+  raw.githubusercontent.com: 151.101.76.133
+
+# profile:
+  # 存放节点选择结果在 $HOME/.config/clash/.cache , 如果不存储则设置为 false
+  # 当两个不同的配置具有相同名称的组时，将共享选定的值
+  # store-selected: true
+
+  # 持久性 fakeip
+  # store-fake-ip: false
+
+# DNS 服务器设置 （此部分为可选。若不存在，DNS 服务器将被禁用。）
+# 1. clash DNS 请求逻辑：
+#   (1) 当访问一个域名时， nameserver 与 fallback 列表内的所有服务器并发请求，得到域名对应的 IP 地址。
+#   (2) clash 将选取 nameserver 列表内，解析最快的结果。
+#   (3) 若解析结果中，IP 地址属于 国外，那么 clash 将选择 fallback 列表内，解析最快的结果。
+#
+#   因此，我在 nameserver 和 fallback 内都放置了无污染、解析速度较快的国内 DNS 服务器，以达到最快的解析速度。
+#   但是 fallback 列表内服务器会用在解析境外网站，为了结果绝对无污染，我仅保留了支持 DoT/DoH 的两个服务器。
+#
+# 2. clash DNS 配置注意事项：
+#   (1) 如果您为了确保 DNS 解析结果无污染，请仅保留列表内以 tls:// 或 https:// 开头的 DNS 服务器，但是通常对于国内域名没有必要。
+#   (2) 如果您不在乎可能解析到污染的结果，更加追求速度。请将 nameserver 列表的服务器插入至 fallback 列表内，并移除重复项。
+#
+# 3. 关于 DNS over HTTPS (DoH) 和 DNS over TLS (DoT) 的选择：
+#   对于两项技术双方各执一词，而且会无休止的争论，各有利弊。各位请根据具体需求自行选择，但是配置文件内默认启用 DoT，因为目前国内没有封锁或管制。
+#   DoH: 以 https:// 开头的 DNS 服务器。拥有更好的伪装性，且几乎不可能被运营商或网络管理封锁，但查询效率和安全性可能略低。
+#   DoT: 以 tls:// 开头的 DNS 服务器。拥有更高的安全性和查询效率，但端口有可能被管制或封锁。
+#   若要了解更多关于 DoH/DoT 相关技术，请自行查阅规范文档。
+dns:
+  # 是否启用dns
+  enable: true
+  # listen: 0.0.0.0:53
+  # 为 false 时 AAAA 回复 empty
+  # ipv6: false 
+
+  # 用于解析 DNS 名称服务器主机名的名称服务器。（仅指定 IP 地址）
+  # default-nameserver:
+  #  - 114.114.114.114
+  #  - 8.8.8.8
+  # 增强模式：redir-host或fake-ip
+  enhanced-mode: fake-ip
+  # Fake IP 地址池 CIDR
+  # fake-ip-range: 198.18.0.1/16
+  # 查找主机并返回 IP 记录
+  # use-hosts: true
+  
+  # 搜索域名的 A/AAAA 记录
+  # search-domains: [local] 
+
+  # 此列表中的主机名将不会使用 Fake IP 进行解析
+  # 即对这些域名的查询将始终使用其真实 IP 地址进行回应
+  fake-ip-filter:
+    - +.stun.*.*
+    - +.stun.*.*.*
+    - +.stun.*.*.*.*
+    - +.stun.*.*.*.*.*
+    - "*.n.n.srv.nintendo.net"
+    - +.stun.playstation.net
+    - xbox.*.*.microsoft.com
+    - "*.*.xboxlive.com"
+    - "*.msftncsi.com"
+    - "*.msftconnecttest.com"
+    - WORKGROUP
+
+  # 支持 UDP、TCP、DoT、DoH。您可以指定要连接的端口。
+  nameserver:
+    - 114.114.114.114 # 114 DNS
+    - 223.5.5.5 # Ali DNS
+    - 8.8.8.8 # Google DNS
+    # - 180.76.76.76 # 百度DNS
+    # - 119.29.29.29 # 腾讯DNS
+    # - 117.50.11.11 # ONE DNS拦截版 恶意网站拦截、广告过滤
+    # - 117.50.10.10 # ONE DNS纯净版 直接返回其真实的响应结果
+    # - tls://dns.rubyfish.cn:853 # DNS over TLS
+    # - https://1.1.1.1/dns-query # DNS over HTTPS
+    # - dhcp://en0 # dns from dhcp
+    # - '8.8.8.8#en0'
+
+  # 当存在“fallback”时，DNS 服务器将向此部分中的服务器以及“nameservers”中的服务器发送并发请求。
+  # 如果“fallback”中的服务器返回的结果与“nameservers”中的服务器不同，则返回“fallback”中的结果。
+  fallback: []
+  #   - tcp://1.1.1.1 # Cloudflare DNS
+  #   - 'tcp://1.1.1.1#en0'
